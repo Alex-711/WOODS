@@ -4,7 +4,7 @@ from braindecode import EEGClassifier
 from sklearn.model_selection import train_test_split
 
 from braindecode.datasets import SleepPhysionet
-from braindecode.preprocessing import preprocess, Preprocessor
+
 from sklearn.preprocessing import robust_scale
 from braindecode.preprocessing import create_windows_from_events
 import numpy as np
@@ -19,7 +19,7 @@ from woods.models import BENDR
 
 
 if __name__ == "__main__":
-    subject_ids = [0,1,2]
+    subject_ids = [0]
 
     dataset = SleepPhysionet(
         subject_ids=subject_ids, recording_ids=None, crop_wake_mins=30)
@@ -50,7 +50,7 @@ if __name__ == "__main__":
         trial_start_offset_samples=0,
         trial_stop_offset_samples=0,
         window_size_samples=window_size_samples,
-        window_stride_samples=window_size_samples,
+        window_stride_samples=30*100,
         preload=True,
         mapping=mapping,
     )
@@ -84,11 +84,39 @@ if __name__ == "__main__":
 #data = torch.zeros_like(input)
 #resul = model.channel_embedding(data)
     from skorch.helper import SliceDataset
-    x = torch.from_numpy(np.array(SliceDataset(windows_dataset, 0)))
 
     model = BENDR(windows_input=1600, samples=100,
                   original_channel_size =2,
                   model_hparams=model_hparams)
+
+    x = torch.from_numpy(np.array(SliceDataset(windows_dataset, 0)))
+    model(x[::, :1])
+    x.shape#([2254, 2, 1600])
+    #testando com todas as janelas
+    result_em = model.channel_embedding(x)
+    result_em.shape#([2254, 20, 2, 1599])
+    #testando com uma janela
+    result_em_2 = model.channel_embedding(x[::, :1])
+
+    result_em_2.shape#([2254, 20, 1599])
+
+    result_en = model.encoder(result_em_2)
+    result_en.shape#([2254, 512, 17])
+
+    result_aug = model.enc_augment(result_en)
+    result_aug.shape#([2254, 1536, 17])
+
+    result_sum = model.summarizer(result_aug)
+    result_sum.shape#([2254, 1536, 4])
+
+    result_features = model.extended_classifier(result_sum)
+    result_features.shape#([2254, 2048])
+
+    result_log = model.classifier(result_features)
+    result_log.shape#([2254, 1600])
+
+    result = result_log.unsqueeze(1)
+    result.shape#([2254, 1, 1600])
     lr = 1e-3
     batch_size = 32
     n_epochs = 5
