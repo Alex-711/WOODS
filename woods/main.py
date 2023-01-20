@@ -18,19 +18,17 @@ from woods.models import BENDR
 
 
 
-
-
 if __name__ == "__main__":
-    subject_ids = [0,1,2,3,4,5]
+    subject_ids = [0,1,2]
 
     dataset = SleepPhysionet(
-        subject_ids=subject_ids, recording_ids=[2], crop_wake_mins=30)
+        subject_ids=subject_ids, recording_ids=None, crop_wake_mins=30)
 
 
 
-    preprocessors = [Preprocessor(robust_scale, channel_wise=True)]
-
-    preprocess(dataset, preprocessors)
+    # preprocessors = [Preprocessor(robust_scale, channel_wise=True)]
+    #
+    # preprocess(dataset, preprocessors)
 
 
 
@@ -43,7 +41,7 @@ if __name__ == "__main__":
         'Sleep stage R': 4,
     }
 
-    window_size_s = 30
+    window_size_s = 16
     sfreq = 100
     window_size_samples = window_size_s * sfreq
 
@@ -58,12 +56,15 @@ if __name__ == "__main__":
     )
 
 
-    split_ids = dict(train=subject_ids[0:2], test=subject_ids[3:4] , valid = [5])
+    split_ids = dict(train=subject_ids[0:2],
+                     test=subject_ids[3:4] ,
+                     valid = [5])
 
     splits = windows_dataset.split(split_ids)
     train_set, test_set, valid_set = splits["train"], splits["test"], splits["valid"]
 
 
+    ##############################################
 
     model_hparams = {
         'model': 'BENDR',
@@ -82,8 +83,12 @@ if __name__ == "__main__":
 #input = torch.empty(2, 3000)
 #data = torch.zeros_like(input)
 #resul = model.channel_embedding(data)
-    model = BENDR(windows_input = 3000, samples = 20, original_channel_size = 1 , model_hparams=model_hparams)
+    from skorch.helper import SliceDataset
+    x = torch.from_numpy(np.array(SliceDataset(windows_dataset, 0)))
 
+    model = BENDR(windows_input=1600, samples=100,
+                  original_channel_size =2,
+                  model_hparams=model_hparams)
     lr = 1e-3
     batch_size = 32
     n_epochs = 5
