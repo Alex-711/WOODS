@@ -1,7 +1,8 @@
+
+
 from braindecode import EEGClassifier
 from sklearn.model_selection import train_test_split
 
-from models import BENDR
 from braindecode.datasets import SleepPhysionet
 from braindecode.preprocessing import preprocess, Preprocessor
 from sklearn.preprocessing import robust_scale
@@ -13,15 +14,15 @@ from skorch.callbacks import EpochScoring, LRScheduler
 from sklearn.metrics import balanced_accuracy_score
 import torch
 from braindecode.util import set_random_seeds
+from woods.models import BENDR
+
 
 
 
 
 if __name__ == "__main__":
-
-
     subject_ids = [0,1,2,3,4,5]
-    crop = (0, 30 * 400)
+
     dataset = SleepPhysionet(
         subject_ids=subject_ids, recording_ids=[2], crop_wake_mins=30)
 
@@ -33,7 +34,7 @@ if __name__ == "__main__":
 
 
 
-    mapping = {  # We merge stages 3 and 4 following AASM standards.
+    mapping = {
         'Sleep stage W': 0,
         'Sleep stage 1': 1,
         'Sleep stage 2': 2,
@@ -57,20 +58,11 @@ if __name__ == "__main__":
     )
 
 
-    split_ids = dict(train=subject_ids[0:2], test=subject_ids[3:5])
-    train_valid_ix, test_ix = split_ids["train"], split_ids["test"]
-    train_ix, valid_ix = train_test_split(train_valid_ix, train_size=0.8, random_state = 42)
-    df = windows_dataset.description
-    train_ix = df[df['subject'].isin(train_ix)].index.tolist()
-    valid_ix = df[df['subject'].isin(valid_ix)].index.tolist()
-    test_ix = df[df['subject'].isin(test_ix)].index.tolist()
-    split_ids = dict(train=train_ix, test=test_ix, valid=valid_ix)
-
-    print(f"Splitting dataset")
+    split_ids = dict(train=subject_ids[0:2], test=subject_ids[3:4] , valid = [5])
 
     splits = windows_dataset.split(split_ids)
-
     train_set, test_set, valid_set = splits["train"], splits["test"], splits["valid"]
+
 
 
     model_hparams = {
@@ -87,10 +79,14 @@ if __name__ == "__main__":
         'classifier_layers': 1,
         'model_path': None
     }
-    model = BENDR(windows_input=1000, samples=3000, original_channel_size=3, model_hparams=model_hparams)
+#input = torch.empty(2, 3000)
+#data = torch.zeros_like(input)
+#resul = model.channel_embedding(data)
+    model = BENDR(windows_input = 3000, samples = 20, original_channel_size = 1 , model_hparams=model_hparams)
+
     lr = 1e-3
     batch_size = 32
-    n_epochs = 3
+    n_epochs = 5
 
 
     cuda = torch.cuda.is_available()
@@ -100,9 +96,6 @@ if __name__ == "__main__":
 
     set_random_seeds(seed=31, cuda=cuda)
 
-    n_classes = 5
-
-    in_chans, input_size_samples = train_set[0][0].shape
 
 
     def balanced_accuracy_multi(model, X, y):
@@ -128,9 +121,6 @@ if __name__ == "__main__":
     ]
     lr = 0.0625 * 0.01
     weight_decay = 0
-
-
-
     batch_size = 64
     n_epochs = 4
 
@@ -138,7 +128,7 @@ if __name__ == "__main__":
         model,
         criterion=torch.nn.NLLLoss,
         optimizer=torch.optim.AdamW,
-        train_split=predefined_split(valid_set),  # using valid_set for validation
+        train_split=predefined_split(valid_set),
         optimizer__lr=lr,
         optimizer__weight_decay=weight_decay,
         batch_size=batch_size,
@@ -147,6 +137,7 @@ if __name__ == "__main__":
         ],
         device=device,
     )
+
 
     clf.fit(train_set, y=None, epochs=n_epochs)
 
