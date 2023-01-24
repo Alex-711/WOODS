@@ -6,7 +6,7 @@ from sklearn.model_selection import train_test_split
 from braindecode.datasets import SleepPhysionet
 
 from sklearn.preprocessing import robust_scale
-from braindecode.preprocessing import create_windows_from_events
+from braindecode.preprocessing import create_windows_from_events, Preprocessor, preprocess
 import numpy as np
 from sklearn.utils import compute_class_weight
 from skorch.helper import predefined_split
@@ -24,11 +24,13 @@ if __name__ == "__main__":
     dataset = SleepPhysionet(
         subject_ids=subject_ids, recording_ids=None, crop_wake_mins=30)
 
+    freq = 128
 
+    preprocessors = [Preprocessor(robust_scale, channel_wise=True),
+                     Preprocessor('resample', sfreq=freq),]
 
-    # preprocessors = [Preprocessor(robust_scale, channel_wise=True)]
     #
-    # preprocess(dataset, preprocessors)
+    preprocess(dataset, preprocessors)
 
 
 
@@ -41,18 +43,20 @@ if __name__ == "__main__":
         'Sleep stage R': 4,
     }
 
-    window_size_s = 16
-    sfreq = 100
-    window_size_samples = window_size_s * sfreq
+    window_size_s = 30
+
+    window_size_samples = window_size_s * freq
 
     windows_dataset = create_windows_from_events(
         dataset,
         trial_start_offset_samples=0,
         trial_stop_offset_samples=0,
         window_size_samples=window_size_samples,
-        window_stride_samples=30*100,
+        window_stride_samples=window_size_samples,
         preload=True,
         mapping=mapping,
+        picks="Fpz-Cz",
+
     )
 
 
@@ -77,7 +81,7 @@ if __name__ == "__main__":
         'mask_p_c': 0.005,
         'mask_t_span': 0.05,
         'mask_c_span': 0.1,
-        'classifier_layers': 1,
+        'classifier_layers': 2,
         'model_path': None
     }
 #input = torch.empty(2, 3000)
@@ -85,9 +89,12 @@ if __name__ == "__main__":
 #resul = model.channel_embedding(data)
     from skorch.helper import SliceDataset
 
-    model = BENDR(windows_input=1600, samples=100,
-                  original_channel_size =2,
+    model = BENDR(windows_input=3840, samples=freq,
+                  original_channel_size =1,
                   model_hparams=model_hparams)
+#tem que dar commit e depois dar pull no computador remoto.
+    from skorch.helper import SliceDataset
+
 
     x = torch.from_numpy(np.array(SliceDataset(windows_dataset, 0)))
     model(x[::, :1])
@@ -115,8 +122,6 @@ if __name__ == "__main__":
     result_log = model.classifier(result_features)
     result_log.shape#([2254, 1600])
 
-    result = result_log.unsqueeze(1)
-    result.shape#([2254, 1, 1600])
     lr = 1e-3
     batch_size = 32
     n_epochs = 5
@@ -172,7 +177,7 @@ if __name__ == "__main__":
     )
 
 
-    clf.fit(train_set, y=None, epochs=n_epochs)
+    clf.fit(train_set[0], y=None, epochs=n_epochs)
 
 
 
