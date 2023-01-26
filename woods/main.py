@@ -19,7 +19,7 @@ from woods.models import BENDR
 
 
 if __name__ == "__main__":
-    subject_ids = [0]
+    subject_ids = [0,1,2,3,4,5]
 
     dataset = SleepPhysionet(
         subject_ids=subject_ids, recording_ids=None, crop_wake_mins=30)
